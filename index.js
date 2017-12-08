@@ -12,6 +12,9 @@ const fullUrl = (path = '') => {
     if (program.type) {
       url += program.type + '/';
     }
+    if (program.id) {
+      url += program.id + '/';
+    }
   }
   return url + path.replace(/^\/*/, '');
 };
@@ -34,7 +37,8 @@ program
   .option('-j, --json', 'format output as JSON')
   .option('-i, --index <name>', 'which index to use')
   .option('-t, --type <type>', 'default type for bulk operations')
-  .option('-f, --filter <filter>', 'source filter for query results');
+  .option('-f, --filter <filter>', 'source filter for query results')
+  .option('-u, --id <number>', 'id of document');
 
 program
   .command('url [path]')
@@ -47,6 +51,40 @@ program
   .action((path = '/') => {
     const options = { url: fullUrl(path), json: program.json };
     request(options, handleResponse);
+  });
+
+// $ ./esclu put ../data/art_of_war.json -i books -t book --id pg132
+program
+  .command('put <file>')
+  .description('perform a http put request for specified file')
+  .action(file => {
+    if (!program.id) {
+      const msg = 'No id specified! Use --id <number>';
+      if (!program.json) throw Error(msg);
+      console.log(JSON.stringify({ error: msg }));
+      return;
+    }
+    fs.stat(file, (err, stats) => {
+      if (err) {
+        if (program.json) {
+          console.log(JSON.stringify(err));
+          return;
+        }
+        throw err;
+      }
+      const options = {
+        url: fullUrl(),
+        json: true,
+        headers: {
+          'content-length': stats.size,
+          'content-type': 'application/json'
+        }
+      };
+      const req = request.post(options);
+      const stream = fs.createReadStream(file);
+      stream.pipe(req);
+      req.pipe(process.stdout);
+    });
   });
 
 program
